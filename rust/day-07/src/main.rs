@@ -1,65 +1,45 @@
 use std::collections::HashMap;
-use std::rc::Rc;
 use std::fs;
-
-trait FileSystemObject {
-    fn name(&self) -> String;
-    fn size(&self) -> usize;
-    fn parent(&self) -> Rc<Directory>;
-}
 
 struct File {
     name: String,
-    size: usize,
-    parent: Option<Rc<Directory>>
-}
-
-impl File {
-    fn new(
-        name: String,
-        size: usize,
-        parent: Option<Rc<Directory>>
-    ) -> Self { File { name, size, parent } }
-}
-
-impl FileSystemObject for File {
-    fn name(&self) -> String { self.name.clone() }
-    fn size(&self) -> usize { self.size }
-    fn parent(&self) -> Rc<Directory> {
-        Rc::clone(self.parent.as_ref().expect("error, no parent"))
-    }
+    size: usize
 }
 
 struct Directory {
     name: String,
-    contents: HashMap<String, Rc<dyn FileSystemObject>>,
-    parent: Option<Rc<Directory>>
+    files: HashMap<String, File>,
+    directories: HashMap<String, Directory>
 }
 
 impl Directory {
-    fn new(name: String, parent: Option<Rc<Directory>>) -> Self {
-        Directory { name: name, contents: HashMap::new(), parent: parent }
+    fn build_root() -> Self {
+        Directory {
+            name: "/".to_string(),
+            files: HashMap::new(),
+            directories: HashMap::new()
+        }
     }
 
-    fn add_content(&mut self, object: Rc<dyn FileSystemObject>) {
-        self.contents.insert(object.name(), Rc::clone(&object));
+    fn add_file(&mut self, name: String, size: usize) {
+        let new_file = File {
+            name: name.clone(),
+            size: size
+        };
+        self.files.insert(name, new_file);
     }
 
-    fn get_child_directory(&self, name: String) -> Rc<Directory> {
-        let result = self.contents.get(&name).unwrap();
-        Rc::clone(result)
-    }
-}
-
-impl FileSystemObject for Directory {
-    fn name(&self) -> String { self.name.clone() }
-    fn size(&self) -> usize {
-        // TODO: Implement
-        0
+    fn add_directory(&mut self, name: String) {
+        let new_dir = Directory {
+            name: name.clone(),
+            files: HashMap::new(),
+            directories: HashMap::new()
+        };
+        self.directories.insert(name, new_dir);
     }
 
-    fn parent(&self) -> Rc<Directory> {
-        Rc::clone(self.parent.as_ref().expect("error, no parent"))
+    fn get_directory(&mut self, name: String) -> &mut Directory {
+        self.directories.get_mut(&name).unwrap()
     }
 }
 
@@ -67,17 +47,26 @@ fn main() {
     let input = fs::read_to_string("test_input.txt").unwrap();
     let lines = input.lines().skip(1).peekable();
 
-    let root: Rc<Directory> = Rc::new(Directory::new("/".to_string(), None));
-    let mut cwd = Rc::clone(&root);
+    let mut root = Directory::build_root();
+    let mut cwd = &mut root;
+    let mut dir_stack: Vec<&mut Directory> = Vec::new();
     
     for line in lines {
         if line.contains("$ ls") {
             continue;
         } else if line.contains("$ cd ..") {
-            cwd = cwd.parent();
+            cwd = dir_stack.pop().expect("error, no parent dirs on stack");
         } else if line.contains("$ cd") {
-            let dir = line.split_ascii_whitespace().last().unwrap();
-            cwd = cwd.get_content("").unwrap();   //.get_content(dir.to_string()).unwrap();
+            let next_dir_name = line.split_ascii_whitespace().last().unwrap();
+            dir_stack.push(cwd);
+            cwd = dir_stack.last_mut().unwrap().get_directory(next_dir_name.to_string());
+        } else {
+            let (size, name) = line.split_once(' ').unwrap();
+            if size == "dir" {
+                cwd.add_directory(name.to_string())
+            } else {
+
+            }
         }
     }
 }
