@@ -1,45 +1,75 @@
-use std::collections::HashMap;
-use std::fs;
+use std::{fs, iter::{Once, Chain, once}, collections::{ HashMap, hash_map::Values}};
 
 struct File {
     name: String,
     size: usize
 }
 
+impl File {
+    fn new(name: &str, size: usize) -> Self {
+        Self { name: name.to_string(), size: size }
+    }
+}
+
 struct Directory {
     name: String,
     files: HashMap<String, File>,
-    directories: HashMap<String, Directory>
+    dirs: HashMap<String, Directory>,
+    size: Option<usize>
+
 }
 
 impl Directory {
-    fn build_root() -> Self {
-        Directory {
-            name: "/".to_string(),
+    fn new(name: &str) -> Self {
+        Self {
+            name: name.to_string(),
             files: HashMap::new(),
-            directories: HashMap::new()
+            dirs: HashMap::new(),
+            size: None
         }
     }
 
-    fn add_file(&mut self, name: String, size: usize) {
-        let new_file = File {
-            name: name.clone(),
-            size: size
-        };
-        self.files.insert(name, new_file);
+    fn add_file(self, name: &str, size: usize) -> Self {
+        let mut files = self.files;
+        files.insert(name.to_string(), File::new(name, size));
+        Self { files: files, size: None, ..self }
     }
 
-    fn add_directory(&mut self, name: String) {
-        let new_dir = Directory {
-            name: name.clone(),
-            files: HashMap::new(),
-            directories: HashMap::new()
-        };
-        self.directories.insert(name, new_dir);
+    fn add_dir(self, name: &str) -> Self {
+        let mut dirs = self.dirs;
+        dirs.insert(name.to_string(), Self::new(name));
+        Self { dirs: dirs, size: None, ..self }
     }
 
-    fn get_directory(&mut self, name: String) -> &mut Directory {
-        self.directories.get_mut(&name).unwrap()
+    fn move_up(self, dir_stack: &mut Vec<Directory>) -> Self {
+        let mut parent = dir_stack.pop().unwrap();
+        parent.dirs.insert(self.name.clone(), self);
+        parent
+    }
+
+    fn move_in(mut self, dir_stack: &mut Vec<Directory>, name: &str) -> Self {
+        let child = self.dirs.remove(name).unwrap();
+        dir_stack.push(self);
+        child
+    }
+
+    fn move_to_root(mut self, dir_stack: &mut Vec<Directory>) -> Self {
+        while !dir_stack.is_empty() {
+            self = self.move_up(dir_stack);
+        }
+        self
+    }
+
+    fn recompute_size(&mut self) -> usize {
+        let mut size: usize = 0;
+        for child in self.dirs.values_mut() {
+            size += child.recompute_size();
+        }
+        for file in self.files.values() {
+            size += file.size;
+        }
+        self.size = Some(size);
+        size
     }
 }
 
@@ -47,26 +77,30 @@ fn main() {
     let input = fs::read_to_string("test_input.txt").unwrap();
     let lines = input.lines().skip(1).peekable();
 
-    let mut root = Directory::build_root();
-    let mut cwd = &mut root;
-    let mut dir_stack: Vec<&mut Directory> = Vec::new();
+    let mut cwd = Directory::new("/");
+    
+    let mut dir_stack: Vec<Directory> = Vec::new();
     
     for line in lines {
         if line.contains("$ ls") {
             continue;
         } else if line.contains("$ cd ..") {
-            cwd = dir_stack.pop().expect("error, no parent dirs on stack");
+            cwd = cwd.move_up(&mut dir_stack);
         } else if line.contains("$ cd") {
-            let next_dir_name = line.split_ascii_whitespace().last().unwrap();
-            dir_stack.push(cwd);
-            cwd = dir_stack.last_mut().unwrap().get_directory(next_dir_name.to_string());
+            let name = line.split_ascii_whitespace().last().unwrap();
+            cwd = cwd.move_in(&mut dir_stack, name);
         } else {
             let (size, name) = line.split_once(' ').unwrap();
             if size == "dir" {
-                cwd.add_directory(name.to_string())
+                cwd = cwd.add_dir(name);
             } else {
-
+                let size = size.parse::<usize>().unwrap();
+                cwd = cwd.add_file(name, size);
             }
         }
     }
+
+    cwd = cwd.move_to_root(&mut dir_stack);
+
+    cwd.recompute_size();
 }
