@@ -1,12 +1,13 @@
-use std::fs;
-use std::collections::{HashMap, HashSet};
+use std::{ fs, ops, iter, cmp };
+use std::collections::{HashMap, HashSet, VecDeque};
 
 struct Graph<T> {
     vertices: Vec<T>,
     edges: HashMap<(usize, usize), usize>
 }
 
-impl<T> Graph<T> {
+impl<T> Graph<T>
+where T: Clone + cmp::PartialEq {
     fn new() -> Self {
         Self {
             vertices: Vec::new(),
@@ -14,8 +15,17 @@ impl<T> Graph<T> {
         }
     }
 
-    fn size(&self) -> usize {
-        self.vertices.len()
+    fn reverse(&self) -> Self {
+        let mut G = Self {
+            vertices: self.vertices.clone(),
+            edges: HashMap::new()
+        };
+
+        for ((v1, v2), &edge) in self.edges.iter() {
+            G.edges.insert((*v2, *v1), edge);
+        }
+
+        G
     }
 
     fn add_vertex(&mut self, content: T) {
@@ -24,6 +34,12 @@ impl<T> Graph<T> {
 
     fn add_edge(&mut self, v1: usize, v2: usize, edge: usize) {
         self.edges.insert((v1, v2), edge);
+    }
+
+    fn get_neighbors(&self, u: usize) -> impl Iterator<Item = usize> + '_ {
+        let iter = 0..self.vertices.len();
+        iter.filter(move |&v| self.edges.contains_key(&(u, v)))
+
     }
 
     fn dijkstra(&self, source: usize, target: usize) -> usize {
@@ -54,6 +70,36 @@ impl<T> Graph<T> {
         }
 
         dist[target]
+    }
+
+    fn breadth_first_search(
+        &self, source: usize,
+        target_content: T
+    ) -> Option<usize> {
+        let mut Q = VecDeque::new();
+        let mut explored = HashSet::new();
+
+        explored.insert(source);
+        Q.push_back(source);
+        
+        while !Q.is_empty() {
+            let v = Q.pop_front().unwrap();
+
+            if self.vertices[v] == target_content {
+                return Some(self.dijkstra(source, v))
+            }
+
+            let neighbors = self.get_neighbors(v);
+
+            for w in neighbors {
+                if !explored.contains(&w) {
+                    explored.insert(w);
+                    Q.push_back(w);
+                }
+            }
+        }
+
+        None
     }
 }
 
@@ -160,7 +206,12 @@ impl Map {
 
 fn main() {
     let (map, source, target) = Map::from_file("test_input.txt");
-    let graph = map.to_graph();
+    let mut graph = map.to_graph();
     let result = graph.dijkstra(source, target);
     println!("Path from S to E takes {result} steps");
+
+    println!(
+        "Path from S to some 'a' takes {} steps",
+        graph.reverse().breadth_first_search(target, 'a' as usize).unwrap()
+    )
 }
