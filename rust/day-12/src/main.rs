@@ -1,4 +1,4 @@
-use std::{ fs, ops, iter, cmp };
+use std::{ fs, cmp };
 use std::collections::{HashMap, HashSet, VecDeque};
 
 struct Graph<T> {
@@ -39,7 +39,6 @@ where T: Clone + cmp::PartialEq {
     fn get_neighbors(&self, u: usize) -> impl Iterator<Item = usize> + '_ {
         let iter = 0..self.vertices.len();
         iter.filter(move |&v| self.edges.contains_key(&(u, v)))
-
     }
 
     fn dijkstra(&self, source: usize, target: usize) -> usize {
@@ -73,25 +72,28 @@ where T: Clone + cmp::PartialEq {
     }
 
     fn breadth_first_search(
-        &self, source: usize,
+        &self,
+        source: usize,
         target_content: T
     ) -> Option<usize> {
         let mut Q = VecDeque::new();
         let mut explored = HashSet::new();
+        let mut dist: Vec<usize> = vec![usize::MAX; self.vertices.len()];
 
         explored.insert(source);
         Q.push_back(source);
+        dist[source] = 0;
         
         while !Q.is_empty() {
             let v = Q.pop_front().unwrap();
 
             if self.vertices[v] == target_content {
-                return Some(self.dijkstra(source, v))
+                return Some(dist[v]);
             }
 
             let neighbors = self.get_neighbors(v);
-
             for w in neighbors {
+                dist[w] = dist[v] + self.edges.get(&(v, w)).unwrap();
                 if !explored.contains(&w) {
                     explored.insert(w);
                     Q.push_back(w);
@@ -206,7 +208,7 @@ impl Map {
 
 fn main() {
     let (map, source, target) = Map::from_file("test_input.txt");
-    let mut graph = map.to_graph();
+    let graph = map.to_graph();
     let result = graph.dijkstra(source, target);
     println!("Path from S to E takes {result} steps");
 
