@@ -1,8 +1,17 @@
 use std::fs;
-use std::collections::HashSet;
+use std::ops::RangeInclusive;
 
 type Coord = (isize, isize);
-type Pair = (Coord, Coord);
+
+fn distance_L1(c1: &Coord, c2: &Coord) -> isize {
+    (c1.0 - c2.0).abs() + (c1.1 - c2.1).abs()
+}
+
+struct Pair {
+    sensor: Coord,
+    beacon: Coord,
+    dist: isize
+}
 
 fn parse_coordinate(coord_str: &str) -> Coord {
     let (x_str, y_str) = coord_str.split_once(", ").unwrap();
@@ -12,55 +21,56 @@ fn parse_coordinate(coord_str: &str) -> Coord {
     )
 }
 
-fn parse_line(line: &str) -> Pair {
-    let (mut sensor_str, mut beacon_str) = line.split_once(":").unwrap();
-    sensor_str = sensor_str.strip_prefix("Sensor at ").unwrap();
-    beacon_str = beacon_str.strip_prefix(" closest beacon is at ").unwrap();
+impl Pair {
+    fn new(sensor: Coord, beacon: Coord) -> Self {
+        Self {
+            sensor: sensor,
+            beacon: beacon,
+            dist: distance_L1(&sensor, &beacon)
+        }
+    }
 
-    (parse_coordinate(sensor_str), parse_coordinate(beacon_str))
-} 
+    // fn coverage_band(&self, row: isize) -> RangeInclusive<isize> {
+    //     let dy = (self.sensor.1 - row).abs();
+    //     let start = self.sensor.0 - (self.dist - dy);
+    //     let end = self.sensor.0 + (self.dist - dy);
+    //     start..=end
+    // }
+
+    fn from_string(line: &str) -> Self {
+        let (mut sensor_str, mut beacon_str) = line.split_once(":").unwrap();
+        sensor_str = sensor_str.strip_prefix("Sensor at ").unwrap();
+        beacon_str = beacon_str.strip_prefix(" closest beacon is at ").unwrap();
+
+        let sensor = parse_coordinate(sensor_str);
+        let beacon = parse_coordinate(beacon_str);
+
+        Self::new(sensor, beacon)
+    }
+}
 
 fn read_sensor_beacon_pairs() -> Vec<Pair> {
     fs::read_to_string("test_input.txt")
             .unwrap()
             .lines()
-            .map(parse_line)
+            .map(|s| Pair::from_string(s))
             .collect()
 }
 
-fn distance_L1(pair: &Pair) -> isize {
-    (pair.0.0 - pair.1.0).abs() + (pair.0.1 - pair.1.1).abs()
+fn combine_ranges(
+    r1: RangeInclusive<isize>,
+    r2: RangeInclusive<isize>
+) -> Option<RangeInclusive<isize>> {
+
+    
+    None
 }
 
-fn blocked_by_sensor_in_row(
-    pair: &Pair,
-    row: isize
-) -> impl Iterator<Item=Coord> {
-    let radius = distance_L1(pair);
-    let sensor = pair.0;
-    let beacon = pair.0;
-    let dy = (row - sensor.1).abs();
-    let left = sensor.0 - (radius - dy);
-    let right = sensor.0 + (radius - dy);
-    (left..=right).map(move |x| (x, row))
-}
-
-fn is_blocked_by_sensor(pair: &Pair, coord: Coord) -> bool {
-    distance_L1(&(pair.0, coord)) <= distance_L1(pair)
+struct RangeSet {
+    ranges: Vec<RangeInclusive<isize>>
 }
 
 fn main() {
     let pairs = read_sensor_beacon_pairs();
     
-    let mut blocked = HashSet::new();
-    for pair in pairs.iter() {
-        blocked.extend(blocked_by_sensor_in_row(pair, 2000000));
-    }
-    for pair in pairs.iter() {
-        blocked.remove(&pair.0);
-        blocked.remove(&pair.1);
-    }
-    let result = blocked.len();
-    println!("Number of blocked locations in row: {result}");
-
 }
