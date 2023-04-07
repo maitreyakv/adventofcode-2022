@@ -167,6 +167,7 @@ fn simulate(max_fallen_rocks: usize) -> isize {
 }
 
 fn main() {
-    let result = simulate(2022);
+    let result = simulate(2022) + 1;
     println!("tower will be {} units tall after 2022 rocks fall", result);
+    
 }
